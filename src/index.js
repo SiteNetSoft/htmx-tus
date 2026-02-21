@@ -266,7 +266,20 @@ function triggerCompletion(elt, uploads) {
  * Register the tus extension with htmx.
  */
 htmx.defineExtension('tus', {
+  init: function(_apiRef) {
+    htmx.tus = {
+      configure,
+      resetConfig,
+      activeUploads,
+      isSupported: tus.isSupported,
+      canStoreURLs: tus.canStoreURLs,
+    };
+  },
+
   onEvent(name, evt) {
+    // We intercept configRequest (not beforeRequest) because htmx creates
+    // and opens the XHR between these two events. Preventing here avoids
+    // unnecessary XHR setup when we're replacing the transport entirely.
     if (name === 'htmx:configRequest') {
       const elt = evt.detail.elt;
       const config = getTusConfig(elt);

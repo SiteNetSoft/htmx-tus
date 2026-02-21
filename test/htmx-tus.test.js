@@ -10,7 +10,7 @@ vi.mock('tus-js-client', () => {
     this.findPreviousUploads = vi.fn(() => Promise.resolve([]));
     this.resumeFromPreviousUpload = vi.fn();
   });
-  return { Upload: MockUpload, default: { Upload: MockUpload } };
+  return { Upload: MockUpload, isSupported: true, canStoreURLs: true, default: { Upload: MockUpload } };
 });
 
 // Re-imported each beforeEach so mock references stay in sync after resetModules
@@ -319,6 +319,17 @@ describe('htmx-tus extension', () => {
       const detail = handler.mock.calls[0][0].detail;
       expect(detail.upload).toBeDefined();
       expect(detail.file).toBe(file);
+    });
+  });
+
+  describe('htmx.tus namespace', () => {
+    it('attaches htmx.tus namespace to htmx global', () => {
+      expect(htmx.tus).toBeDefined();
+      expect(htmx.tus.configure).toBe(configure);
+      expect(htmx.tus.resetConfig).toBe(resetConfig);
+      expect(htmx.tus.activeUploads).toBe(activeUploads);
+      expect(typeof htmx.tus.isSupported).toBe('boolean');
+      expect(typeof htmx.tus.canStoreURLs).toBe('boolean');
     });
   });
 

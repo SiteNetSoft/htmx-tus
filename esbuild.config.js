@@ -16,7 +16,7 @@ const shared = {
 const iifeOptions = {
   ...shared,
   format: 'iife',
-  outfile: 'dist/htmx-tus.js',
+  outfile: 'dist/htmx-ext-tus.js',
   globalName: 'HtmxTus',
   // tus-js-client is bundled in; htmx is expected as a browser global
 };
@@ -27,7 +27,7 @@ const iifeOptions = {
 const esmOptions = {
   ...shared,
   format: 'esm',
-  outfile: 'dist/htmx-tus.esm.js',
+  outfile: 'dist/htmx-ext-tus.esm.js',
   external: ['tus-js-client', 'htmx.org'],
 };
 

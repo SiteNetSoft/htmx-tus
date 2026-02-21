@@ -1,18 +1,18 @@
 {
-  "name": "htmx-tus",
+  "name": "htmx-ext-tus",
   "version": "0.1.0",
   "type": "module",
   "description": "HTMX extension for resumable file uploads via the tus protocol",
   "license": "Apache-2.0",
   "exports": {
     ".": {
-      "import": "./dist/htmx-tus.esm.js",
-      "default": "./dist/htmx-tus.js"
+      "import": "./dist/htmx-ext-tus.esm.js",
+      "default": "./dist/htmx-ext-tus.js"
     }
   },
-  "main": "./dist/htmx-tus.js",
-  "browser": "./dist/htmx-tus.js",
-  "module": "./dist/htmx-tus.esm.js",
+  "main": "./dist/htmx-ext-tus.js",
+  "browser": "./dist/htmx-ext-tus.js",
+  "module": "./dist/htmx-ext-tus.esm.js",
   "files": [
     "dist/",
     "LICENSE"

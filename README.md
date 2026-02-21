@@ -1,4 +1,4 @@
-# htmx-tus
+# htmx-ext-tus
 
 An [HTMX](https://htmx.org/) extension for resumable file uploads via the [tus protocol](https://tus.io/).
 
@@ -6,22 +6,22 @@ An [HTMX](https://htmx.org/) extension for resumable file uploads via the [tus p
 
 ### Script tag (IIFE)
 
-Load htmx first, then htmx-tus. The tus-js-client is bundled in.
+Load htmx first, then htmx-ext-tus. The tus-js-client is bundled in.
 
 ```html
 <script src="https://unpkg.com/htmx.org@2"></script>
-<script src="path/to/htmx-tus.js"></script>
+<script src="path/to/htmx-ext-tus.js"></script>
 ```
 
 ### npm (ESM)
 
 ```bash
-npm install htmx-tus tus-js-client htmx.org
+npm install htmx-ext-tus tus-js-client htmx.org
 ```
 
 ```js
 import 'htmx.org';
-import 'htmx-tus';
+import 'htmx-ext-tus';
 ```
 
 ## Usage
@@ -178,12 +178,36 @@ Access the tus `Upload` instance via the `tus:start` event for full programmatic
 
 ## JavaScript API
 
+The extension exposes its API in two ways:
+
+- **ESM** — `import { configure, resetConfig, activeUploads, tus } from 'htmx-ext-tus'`
+- **IIFE / script tag** — `htmx.tus.configure(...)`, `htmx.tus.activeUploads`, etc.
+
+### Script tag (IIFE)
+
+When loaded via `<script>`, the API is available on the `htmx.tus` namespace:
+
+```html
+<script>
+  // Configure function-valued options
+  htmx.tus.configure({ httpStack: myCustomHttpStack });
+
+  // Check tus support
+  if (htmx.tus.isSupported) {
+    console.log('tus uploads supported');
+  }
+
+  // Access active uploads
+  const uploads = htmx.tus.activeUploads.get(formElement);
+</script>
+```
+
 ### `configure(options)`
 
 Set global defaults for function-valued tus options that cannot be expressed as attributes.
 
 ```js
-import { configure } from 'htmx-tus';
+import { configure } from 'htmx-ext-tus';
 
 configure({
   httpStack: myCustomHttpStack,
@@ -202,7 +226,7 @@ Accepted keys: `httpStack`, `fileReader`, `urlStorage`, `fingerprint`, `metadata
 Clear all global defaults previously set via `configure()`.
 
 ```js
-import { resetConfig } from 'htmx-tus';
+import { resetConfig } from 'htmx-ext-tus';
 
 resetConfig(); // removes all configure() options
 ```
@@ -212,7 +236,7 @@ resetConfig(); // removes all configure() options
 A `WeakMap<Element, Upload[]>` tracking in-progress uploads per element. Useful for programmatic abort or inspection.
 
 ```js
-import { activeUploads } from 'htmx-tus';
+import { activeUploads } from 'htmx-ext-tus';
 
 const uploads = activeUploads.get(formElement);
 if (uploads) {
@@ -225,7 +249,7 @@ if (uploads) {
 The tus-js-client module is re-exported for convenience:
 
 ```js
-import { tus } from 'htmx-tus';
+import { tus } from 'htmx-ext-tus';
 
 if (tus.isSupported) {
   console.log('tus uploads supported');
