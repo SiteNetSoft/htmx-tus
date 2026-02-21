@@ -1,0 +1,37 @@
+{
+  "name": "htmx-tus",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "HTMX extension for resumable file uploads via the tus protocol",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "import": "./dist/htmx-tus.esm.js",
+      "default": "./dist/htmx-tus.js"
+    }
+  },
+  "main": "./dist/htmx-tus.js",
+  "module": "./dist/htmx-tus.esm.js",
+  "files": [
+    "dist/",
+    "src/"
+  ],
+  "scripts": {
+    "build": "node esbuild.config.js",
+    "dev": "node esbuild.config.js --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "tus-js-client": "^4.2.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2",
+    "htmx.org": "^2.0.4",
+    "jsdom": "^25.0.1",
+    "vitest": "^3.0.4"
+  },
+  "peerDependencies": {
+    "htmx.org": ">=2.0.0"
+  }
+}
