@@ -11,6 +11,7 @@
     }
   },
   "main": "./dist/htmx-tus.js",
+  "browser": "./dist/htmx-tus.js",
   "module": "./dist/htmx-tus.esm.js",
   "files": [
     "dist/",

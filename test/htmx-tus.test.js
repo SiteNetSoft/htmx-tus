@@ -17,6 +17,7 @@ vi.mock('tus-js-client', () => {
 let tus;
 let activeUploads;
 let configure;
+let resetConfig;
 let tusReExport;
 
 beforeEach(async () => {
@@ -28,6 +29,7 @@ beforeEach(async () => {
   const mod = await import('../src/index.js');
   activeUploads = mod.activeUploads;
   configure = mod.configure;
+  resetConfig = mod.resetConfig;
   tusReExport = mod.tus;
 });
 
@@ -55,12 +57,13 @@ function setupFormAndTrigger(attrs = '', file) {
   Object.defineProperty(input, 'files', { value: [testFile], writable: false });
 
   const tusExt = getTusExtension(form);
-  tusExt.onEvent('htmx:configRequest', {
+  const evt = {
     detail: { elt: form },
     preventDefault: vi.fn(),
-  });
+  };
+  tusExt.onEvent('htmx:configRequest', evt);
 
-  return { form, input, tusExt };
+  return { form, input, tusExt, evt };
 }
 
 describe('htmx-tus extension', () => {
@@ -329,7 +332,7 @@ describe('htmx-tus extension', () => {
       expect(opts.httpStack).toBe(mockHttpStack);
 
       // Clean up global config
-      configure({ httpStack: undefined });
+      resetConfig();
     });
 
     it('re-exports tus module', () => {
@@ -422,6 +425,345 @@ describe('htmx-tus extension', () => {
         expect(instance.resumeFromPreviousUpload).not.toHaveBeenCalled();
         expect(instance.start).toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('triggerCompletion', () => {
+    it('calls htmx.ajax after all uploads succeed', () => {
+      htmx.ajax = vi.fn();
+
+      document.body.innerHTML = `
+        <form hx-ext="tus" hx-post="/done"
+              data-tus-endpoint="https://tus.example.com/upload">
+          <input type="file" name="upload" />
+        </form>
+      `;
+
+      const form = document.querySelector('form');
+      const input = form.querySelector('input[type="file"]');
+      const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
+      Object.defineProperty(input, 'files', { value: [file], writable: false });
+
+      const tusExt = getTusExtension(form);
+      tusExt.onEvent('htmx:configRequest', {
+        detail: { elt: form },
+        preventDefault: vi.fn(),
+      });
+
+      const opts = tus.Upload.mock.calls[0][1];
+      opts.onSuccess();
+
+      expect(htmx.ajax).toHaveBeenCalledOnce();
+      expect(htmx.ajax).toHaveBeenCalledWith('POST', '/done', expect.objectContaining({
+        source: form,
+        values: { tusUploadURLs: JSON.stringify(['https://tus.example.com/files/abc123']) },
+      }));
+    });
+
+    it('inherits complete-url from parent element', () => {
+      htmx.ajax = vi.fn();
+
+      document.body.innerHTML = `
+        <div data-tus-complete-url="/complete" hx-ext="tus">
+          <form data-tus-endpoint="https://tus.example.com/upload">
+            <input type="file" name="upload" />
+          </form>
+        </div>
+      `;
+
+      const form = document.querySelector('form');
+      const input = form.querySelector('input[type="file"]');
+      const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
+      Object.defineProperty(input, 'files', { value: [file], writable: false });
+
+      const tusExt = getTusExtension(form);
+      tusExt.onEvent('htmx:configRequest', {
+        detail: { elt: form },
+        preventDefault: vi.fn(),
+      });
+
+      const opts = tus.Upload.mock.calls[0][1];
+      opts.onSuccess();
+
+      expect(htmx.ajax).toHaveBeenCalledOnce();
+      expect(htmx.ajax).toHaveBeenCalledWith('POST', '/complete', expect.anything());
+    });
+  });
+
+  describe('multi-file uploads', () => {
+    it('creates multiple Upload instances for multiple files', () => {
+      document.body.innerHTML = `
+        <form hx-ext="tus" data-tus-endpoint="https://tus.example.com/upload">
+          <input type="file" name="upload1" />
+          <input type="file" name="upload2" />
+        </form>
+      `;
+
+      const form = document.querySelector('form');
+      const inputs = form.querySelectorAll('input[type="file"]');
+      const file1 = new File(['a'], 'a.txt', { type: 'text/plain' });
+      const file2 = new File(['b'], 'b.txt', { type: 'text/plain' });
+      Object.defineProperty(inputs[0], 'files', { value: [file1], writable: false });
+      Object.defineProperty(inputs[1], 'files', { value: [file2], writable: false });
+
+      const tusExt = getTusExtension(form);
+      tusExt.onEvent('htmx:configRequest', {
+        detail: { elt: form },
+        preventDefault: vi.fn(),
+      });
+
+      expect(tus.Upload).toHaveBeenCalledTimes(2);
+      expect(tus.Upload.mock.calls[0][0]).toBe(file1);
+      expect(tus.Upload.mock.calls[1][0]).toBe(file2);
+
+      const tracked = activeUploads.get(form);
+      expect(tracked).toHaveLength(2);
+    });
+
+    it('calls triggerCompletion only after all files complete', () => {
+      htmx.ajax = vi.fn();
+
+      document.body.innerHTML = `
+        <form hx-ext="tus" hx-post="/done"
+              data-tus-endpoint="https://tus.example.com/upload">
+          <input type="file" name="upload1" />
+          <input type="file" name="upload2" />
+        </form>
+      `;
+
+      const form = document.querySelector('form');
+      const inputs = form.querySelectorAll('input[type="file"]');
+      const file1 = new File(['a'], 'a.txt', { type: 'text/plain' });
+      const file2 = new File(['b'], 'b.txt', { type: 'text/plain' });
+      Object.defineProperty(inputs[0], 'files', { value: [file1], writable: false });
+      Object.defineProperty(inputs[1], 'files', { value: [file2], writable: false });
+
+      const tusExt = getTusExtension(form);
+      tusExt.onEvent('htmx:configRequest', {
+        detail: { elt: form },
+        preventDefault: vi.fn(),
+      });
+
+      const opts1 = tus.Upload.mock.calls[0][1];
+      const opts2 = tus.Upload.mock.calls[1][1];
+
+      // First file completes — should not trigger yet
+      opts1.onSuccess();
+      expect(htmx.ajax).not.toHaveBeenCalled();
+
+      // Second file completes — now trigger
+      opts2.onSuccess();
+      expect(htmx.ajax).toHaveBeenCalledOnce();
+    });
+
+    it('calls triggerCompletion when one upload errors and one succeeds', () => {
+      htmx.ajax = vi.fn();
+
+      document.body.innerHTML = `
+        <form hx-ext="tus" hx-post="/done"
+              data-tus-endpoint="https://tus.example.com/upload">
+          <input type="file" name="upload1" />
+          <input type="file" name="upload2" />
+        </form>
+      `;
+
+      const form = document.querySelector('form');
+      const inputs = form.querySelectorAll('input[type="file"]');
+      const file1 = new File(['a'], 'a.txt', { type: 'text/plain' });
+      const file2 = new File(['b'], 'b.txt', { type: 'text/plain' });
+      Object.defineProperty(inputs[0], 'files', { value: [file1], writable: false });
+      Object.defineProperty(inputs[1], 'files', { value: [file2], writable: false });
+
+      const tusExt = getTusExtension(form);
+      tusExt.onEvent('htmx:configRequest', {
+        detail: { elt: form },
+        preventDefault: vi.fn(),
+      });
+
+      const opts1 = tus.Upload.mock.calls[0][1];
+      const opts2 = tus.Upload.mock.calls[1][1];
+
+      // First file errors
+      opts1.onError(new Error('network'));
+      expect(htmx.ajax).not.toHaveBeenCalled();
+
+      // Second file succeeds — triggerCompletion should fire
+      opts2.onSuccess();
+      expect(htmx.ajax).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('attribute inheritance', () => {
+    it('child element inherits data-tus-endpoint from parent', () => {
+      document.body.innerHTML = `
+        <div data-tus-endpoint="https://tus.example.com/upload" hx-ext="tus">
+          <form>
+            <input type="file" name="upload" />
+          </form>
+        </div>
+      `;
+
+      const form = document.querySelector('form');
+      const input = form.querySelector('input[type="file"]');
+      const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
+      Object.defineProperty(input, 'files', { value: [file], writable: false });
+
+      const tusExt = getTusExtension(form);
+      tusExt.onEvent('htmx:configRequest', {
+        detail: { elt: form },
+        preventDefault: vi.fn(),
+      });
+
+      expect(tus.Upload).toHaveBeenCalledOnce();
+      expect(tus.Upload.mock.calls[0][1].endpoint).toBe('https://tus.example.com/upload');
+    });
+  });
+
+  describe('missing endpoint', () => {
+    it('does not create upload when no endpoint is set', () => {
+      document.body.innerHTML = `
+        <form hx-ext="tus">
+          <input type="file" name="upload" />
+        </form>
+      `;
+
+      const form = document.querySelector('form');
+      const input = form.querySelector('input[type="file"]');
+      const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
+      Object.defineProperty(input, 'files', { value: [file], writable: false });
+
+      const tusExt = getTusExtension(form);
+      const evt = {
+        detail: { elt: form },
+        preventDefault: vi.fn(),
+      };
+      tusExt.onEvent('htmx:configRequest', evt);
+
+      expect(tus.Upload).not.toHaveBeenCalled();
+      expect(evt.preventDefault).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('parsing helpers via attributes', () => {
+    it('parses retry-delays with commas', () => {
+      setupFormAndTrigger('data-tus-retry-delays="0,1000,3000"');
+      const opts = tus.Upload.mock.calls[0][1];
+      expect(opts.retryDelays).toEqual([0, 1000, 3000]);
+    });
+
+    it('parses retry-delays with spaces', () => {
+      setupFormAndTrigger('data-tus-retry-delays="0 1000 3000"');
+      const opts = tus.Upload.mock.calls[0][1];
+      expect(opts.retryDelays).toEqual([0, 1000, 3000]);
+    });
+
+    it('parses single retry delay value', () => {
+      setupFormAndTrigger('data-tus-retry-delays="5000"');
+      const opts = tus.Upload.mock.calls[0][1];
+      expect(opts.retryDelays).toEqual([5000]);
+    });
+
+    it('parses JSON metadata', () => {
+      setupFormAndTrigger('data-tus-metadata=\'{"key1":"val1","key2":"val2"}\'');
+      const opts = tus.Upload.mock.calls[0][1];
+      expect(opts.metadata.key1).toBe('val1');
+      expect(opts.metadata.key2).toBe('val2');
+    });
+
+    it('parses key=value metadata', () => {
+      setupFormAndTrigger('data-tus-metadata="key1=val1, key2=val2"');
+      const opts = tus.Upload.mock.calls[0][1];
+      expect(opts.metadata.key1).toBe('val1');
+      expect(opts.metadata.key2).toBe('val2');
+    });
+
+    it('treats NaN chunk-size as undefined (uses tus default)', () => {
+      setupFormAndTrigger('data-tus-chunk-size="notanumber"');
+      const opts = tus.Upload.mock.calls[0][1];
+      expect(opts.chunkSize).toBeUndefined();
+    });
+
+    it('treats NaN upload-size as undefined', () => {
+      setupFormAndTrigger('data-tus-upload-size="invalid"');
+      const opts = tus.Upload.mock.calls[0][1];
+      expect(opts.uploadSize).toBeUndefined();
+    });
+
+    it('treats NaN parallel as undefined', () => {
+      setupFormAndTrigger('data-tus-parallel="abc"');
+      const opts = tus.Upload.mock.calls[0][1];
+      expect(opts.parallelUploads).toBeUndefined();
+    });
+  });
+
+  describe('auto-resume error handling', () => {
+    it('starts upload even if findPreviousUploads rejects', async () => {
+      tus.Upload.mockImplementation(function (f, opts) {
+        this.file = f;
+        this.options = opts;
+        this.url = 'https://tus.example.com/files/abc123';
+        this.start = vi.fn();
+        this.abort = vi.fn();
+        this.findPreviousUploads = vi.fn(() => Promise.reject(new Error('storage error')));
+        this.resumeFromPreviousUpload = vi.fn();
+      });
+
+      document.body.innerHTML = `
+        <form hx-ext="tus" data-tus-endpoint="https://tus.example.com/upload"
+              data-tus-auto-resume="true">
+          <input type="file" name="upload" />
+        </form>
+      `;
+
+      const form = document.querySelector('form');
+      const input = form.querySelector('input[type="file"]');
+      const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
+      Object.defineProperty(input, 'files', { value: [file], writable: false });
+
+      const tusExt = getTusExtension(form);
+      tusExt.onEvent('htmx:configRequest', {
+        detail: { elt: form },
+        preventDefault: vi.fn(),
+      });
+
+      await vi.waitFor(() => {
+        const instance = tus.Upload.mock.instances[0];
+        expect(instance.start).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('resetConfig()', () => {
+    it('clears all configure() state', () => {
+      const mockHttpStack = { createRequest: vi.fn() };
+      configure({ httpStack: mockHttpStack });
+
+      setupFormAndTrigger('');
+      let opts = tus.Upload.mock.calls[0][1];
+      expect(opts.httpStack).toBe(mockHttpStack);
+
+      resetConfig();
+
+      // Trigger a new upload after reset
+      document.body.innerHTML = `
+        <form hx-ext="tus" data-tus-endpoint="https://tus.example.com/upload">
+          <input type="file" name="upload" />
+        </form>
+      `;
+      const form = document.querySelector('form');
+      const input = form.querySelector('input[type="file"]');
+      const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
+      Object.defineProperty(input, 'files', { value: [file], writable: false });
+
+      const tusExt = getTusExtension(form);
+      tusExt.onEvent('htmx:configRequest', {
+        detail: { elt: form },
+        preventDefault: vi.fn(),
+      });
+
+      // httpStack should no longer be present
+      opts = tus.Upload.mock.calls[1][1];
+      expect(opts.httpStack).toBeUndefined();
     });
   });
 

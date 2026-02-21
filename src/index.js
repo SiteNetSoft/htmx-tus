@@ -16,6 +16,15 @@ function configure(options) {
 }
 
 /**
+ * Clear all global config set via configure().
+ */
+function resetConfig() {
+  for (const key of Object.keys(globalConfig)) {
+    delete globalConfig[key];
+  }
+}
+
+/**
  * Parse a space/comma-separated list of integers (e.g. retry delays).
  */
 function parseIntList(str) {
@@ -51,33 +60,51 @@ function parseBool(val, defaultVal) {
 }
 
 /**
+ * Parse a numeric string, returning undefined for absent/invalid values.
+ */
+function parseNum(str) {
+  if (!str) return undefined;
+  const n = Number(str);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * Walk up the DOM to find an inherited data-tus-* attribute value.
+ */
+function getInheritedAttr(elt, name) {
+  let node = elt;
+  while (node && node.getAttribute) {
+    const val = node.getAttribute('data-tus-' + name);
+    if (val != null) return val;
+    node = node.parentElement;
+  }
+  return null;
+}
+
+/**
  * Read tus configuration from data-tus-* attributes on the given element,
  * walking up the DOM to find inherited values.
  */
 function getTusConfig(elt) {
-  const attr = (name) => {
-    let node = elt;
-    while (node && node.getAttribute) {
-      const val = node.getAttribute('data-tus-' + name);
-      if (val != null) return val;
-      node = node.parentElement;
-    }
-    return null;
-  };
+  const attr = (name) => getInheritedAttr(elt, name);
 
   const endpoint = attr('endpoint');
   if (!endpoint) return null;
 
+  const chunkSize = attr('chunk-size');
+  const parallel = attr('parallel');
+  const uploadSize = attr('upload-size');
+
   return {
     endpoint,
-    chunkSize: attr('chunk-size') ? Number(attr('chunk-size')) : undefined,
+    chunkSize: parseNum(chunkSize),
     retryDelays: parseIntList(attr('retry-delays')),
-    parallelUploads: attr('parallel') ? Number(attr('parallel')) : undefined,
+    parallelUploads: parseNum(parallel),
     resume: parseBool(attr('resume'), true),
     metadata: parseKeyValue(attr('metadata')),
     headers: parseKeyValue(attr('headers')),
     uploadUrl: attr('upload-url') || undefined,
-    uploadSize: attr('upload-size') ? Number(attr('upload-size')) : undefined,
+    uploadSize: parseNum(uploadSize),
     uploadDataDuringCreation: parseBool(attr('upload-data-during-creation'), false),
     overridePatchMethod: parseBool(attr('override-patch-method'), false),
     addRequestId: parseBool(attr('add-request-id'), false),
@@ -147,6 +174,7 @@ function startUpload(elt, file, config, onComplete) {
 
     onError(error) {
       dispatch(elt, 'tus:error', { file, error, upload });
+      if (onComplete) onComplete(upload);
     },
 
     onProgress(bytesUploaded, bytesTotal) {
@@ -200,6 +228,8 @@ function startUpload(elt, file, config, onComplete) {
         dispatch(elt, 'tus:resume', { file, upload, previousUpload: previousUploads[0] });
       }
       upload.start();
+    }).catch(() => {
+      upload.start();
     });
   } else {
     upload.start();
@@ -212,7 +242,7 @@ function startUpload(elt, file, config, onComplete) {
  * After all files finish uploading, optionally trigger an htmx AJAX request.
  */
 function triggerCompletion(elt, uploads) {
-  const completeUrl = elt.getAttribute('data-tus-complete-url');
+  const completeUrl = getInheritedAttr(elt, 'complete-url');
   const method = elt.getAttribute('hx-post') ? 'POST'
     : elt.getAttribute('hx-put') ? 'PUT'
     : completeUrl ? 'POST'
@@ -278,4 +308,4 @@ htmx.defineExtension('tus', {
   },
 });
 
-export { activeUploads, configure, tus };
+export { activeUploads, configure, resetConfig, tus };
