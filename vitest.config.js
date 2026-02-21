@@ -5,5 +5,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['test/patch-xpath.js', 'test/setup.js'],
+    coverage: {
+      include: ['src/**'],
+      reporter: ['text', 'lcov'],
+    },
   },
 });

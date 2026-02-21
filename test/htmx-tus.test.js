@@ -697,14 +697,15 @@ describe('htmx-tus extension', () => {
   });
 
   describe('auto-resume error handling', () => {
-    it('starts upload even if findPreviousUploads rejects', async () => {
+    it('starts upload and fires tus:auto-resume-error if findPreviousUploads rejects', async () => {
+      const storageError = new Error('storage error');
       tus.Upload.mockImplementation(function (f, opts) {
         this.file = f;
         this.options = opts;
         this.url = 'https://tus.example.com/files/abc123';
         this.start = vi.fn();
         this.abort = vi.fn();
-        this.findPreviousUploads = vi.fn(() => Promise.reject(new Error('storage error')));
+        this.findPreviousUploads = vi.fn(() => Promise.reject(storageError));
         this.resumeFromPreviousUpload = vi.fn();
       });
 
@@ -720,6 +721,9 @@ describe('htmx-tus extension', () => {
       const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
       Object.defineProperty(input, 'files', { value: [file], writable: false });
 
+      const errorHandler = vi.fn();
+      form.addEventListener('tus:auto-resume-error', errorHandler);
+
       const tusExt = getTusExtension(form);
       tusExt.onEvent('htmx:configRequest', {
         detail: { elt: form },
@@ -730,6 +734,12 @@ describe('htmx-tus extension', () => {
         const instance = tus.Upload.mock.instances[0];
         expect(instance.start).toHaveBeenCalled();
       });
+
+      expect(errorHandler).toHaveBeenCalledOnce();
+      const detail = errorHandler.mock.calls[0][0].detail;
+      expect(detail.error).toBe(storageError);
+      expect(detail.file).toBe(file);
+      expect(detail.upload).toBeDefined();
     });
   });
 

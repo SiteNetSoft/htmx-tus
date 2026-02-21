@@ -203,7 +203,7 @@ function startUpload(elt, file, config, onComplete) {
       dispatch(elt, 'tus:after-response', { file, upload, request: req, response: res });
     },
 
-    onShouldRetry(error, retryAttempt, options) {
+    onShouldRetry(error, retryAttempt, _options) {
       const event = dispatch(elt, 'tus:should-retry', { file, upload, error, retryAttempt }, true);
       if (event.defaultPrevented) return false;
       return null;
@@ -228,7 +228,8 @@ function startUpload(elt, file, config, onComplete) {
         dispatch(elt, 'tus:resume', { file, upload, previousUpload: previousUploads[0] });
       }
       upload.start();
-    }).catch(() => {
+    }).catch((error) => {
+      dispatch(elt, 'tus:auto-resume-error', { file, upload, error });
       upload.start();
     });
   } else {
@@ -281,7 +282,7 @@ htmx.defineExtension('tus', {
       let completed = 0;
 
       for (const { file } of fileEntries) {
-        const upload = startUpload(elt, file, config, (u) => {
+        const upload = startUpload(elt, file, config, (_u) => {
           completed++;
           if (completed === fileEntries.length) {
             triggerCompletion(elt, uploads);

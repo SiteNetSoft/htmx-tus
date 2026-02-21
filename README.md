@@ -98,6 +98,7 @@ All events bubble and include a `detail` object.
 | `tus:after-response` | `{ file, upload, request, response }` | No | After each HTTP response |
 | `tus:should-retry` | `{ file, upload, error, retryAttempt }` | Yes | Retry decision — `preventDefault()` to skip retry |
 | `tus:resume` | `{ file, upload, previousUpload }` | No | Resuming from a previous upload (auto-resume) |
+| `tus:auto-resume-error` | `{ file, upload, error }` | No | `findPreviousUploads()` failed (upload still starts) |
 
 ### Progress bar example
 
@@ -195,6 +196,29 @@ configure({
 ```
 
 Accepted keys: `httpStack`, `fileReader`, `urlStorage`, `fingerprint`, `metadataForPartialUploads`.
+
+### `resetConfig()`
+
+Clear all global defaults previously set via `configure()`.
+
+```js
+import { resetConfig } from 'htmx-tus';
+
+resetConfig(); // removes all configure() options
+```
+
+### `activeUploads`
+
+A `WeakMap<Element, Upload[]>` tracking in-progress uploads per element. Useful for programmatic abort or inspection.
+
+```js
+import { activeUploads } from 'htmx-tus';
+
+const uploads = activeUploads.get(formElement);
+if (uploads) {
+  uploads.forEach(u => u.abort());
+}
+```
 
 ### `tus` re-export
 
