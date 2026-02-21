@@ -66,7 +66,7 @@ function setupFormAndTrigger(attrs = '', file) {
   return { form, input, tusExt, evt };
 }
 
-describe('htmx-tus extension', () => {
+describe('htmx-ext-tus extension', () => {
   it('registers the tus extension with htmx', () => {
     expect(globalThis.htmx).toBeDefined();
   });

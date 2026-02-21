@@ -35,11 +35,23 @@ Add `hx-ext="tus"` to a form (or ancestor) and set `data-tus-endpoint` to your t
 </form>
 ```
 
-When the form is submitted, htmx-tus intercepts the request and uploads each file via tus instead. The normal htmx AJAX request is prevented.
+When the form is submitted, htmx-ext-tus intercepts the request and uploads each file via tus instead. The normal htmx AJAX request is prevented.
+
+### Multi-file uploads
+
+Multiple file inputs are supported — each file gets its own tus upload:
+
+```html
+<form hx-ext="tus" data-tus-endpoint="https://tusd.example.com/files/">
+  <input type="file" name="avatar" />
+  <input type="file" name="document" />
+  <button type="submit">Upload</button>
+</form>
+```
 
 ### Completion callback
 
-To notify your server after all uploads finish, add `data-tus-complete-url` or a standard `hx-post`/`hx-put` attribute. htmx-tus will issue an AJAX request to that URL with the upload URLs as a JSON array in the `tusUploadURLs` parameter.
+To notify your server after all uploads finish, add `data-tus-complete-url` or a standard `hx-post`/`hx-put` attribute. htmx-ext-tus will issue an AJAX request to that URL with the upload URLs as a JSON array in the `tusUploadURLs` parameter.
 
 ```html
 <form hx-ext="tus"
@@ -125,6 +137,17 @@ For more reliable progress (especially with large chunk sizes), listen to `tus:c
   document.querySelector('form').addEventListener('tus:chunk-complete', (e) => {
     const { bytesAccepted, bytesTotal } = e.detail;
     console.log(`${bytesAccepted} / ${bytesTotal} bytes accepted by server`);
+  });
+</script>
+```
+
+### Error handling
+
+```html
+<script>
+  document.querySelector('form').addEventListener('tus:error', (e) => {
+    const { file, error } = e.detail;
+    console.error(`Upload of ${file.name} failed:`, error.message);
   });
 </script>
 ```
